@@ -28,7 +28,7 @@ struct building_s myBuilding;
 // Private Function Prototype(s):
 //****************************************************************************
 static void initBuilding(void);
-static int8_t setNextElevatorStop(struct building_s building);
+static int8_t setNextElevatorStop(struct building_s * building);
 static void moveElevator(struct elevator_s * elevator);
 static void stopElevator(struct building_s * building);
 static void drawBuilding(struct building_s building, int8_t door_status);
@@ -44,8 +44,194 @@ static void delay(int16_t ms);
 //To stop at a floor means to open the doors and let passengers on and off. It 
 //is possible to pass through a floor without stopping there.
 //Note: The output should be a number between 0 and (BUILDING_HEIGHT-1), inclusive
-static int8_t setNextElevatorStop(struct building_s building)
+static int8_t setNextElevatorStop(struct building_s * building)
 {
+	// Check the current number of passenger
+	building->elevator.n_passenger = 0;
+	building->elevator.allDropped = 1;
+	for(int8_t i = 0; i < ELEVATOR_MAX_CAPACITY; i++)
+	{
+		if(building->elevator.passengers[i] != -1)
+		{
+			building->elevator.n_passenger++;
+			if (building->elevator.currentDirection > 0 && building->elevator.passengers[i] > building->elevator.currentFloor \
+				|| building->elevator.currentDirection < 0 && building->elevator.passengers[i] < building->elevator.currentFloor)
+			{
+				building->elevator.allDropped = 0;
+			}
+		}
+	}
+	if(building->elevator.n_passenger == 0)
+	{
+		building->elevator.currentDirection = 0;
+	}
+	else if(building->elevator.allDropped==1)
+	{
+		building->elevator.currentDirection *= -1;
+	}
+
+	// Check the intention of remaining passengers
+	for(int8_t f = 0; f < BUILDING_HEIGHT; f++)
+	{
+		building->floors[f].departureTotalDirection = 0;
+		building->floors[f].departureEmpty = 1;
+		for(int8_t j = 0; j < 2; j++)
+		{
+			if(building->floors[f].departures[j] != -1)
+			{
+				if(building->floors[f].departures[j] > f)
+				{
+					building->floors[f].departuresDirection[j] = 1;
+					building->floors[f].departureTotalDirection += 1;
+				}
+				else
+				{
+					building->floors[f].departuresDirection[j] = -1;
+					building->floors[f].departureTotalDirection -= 1;
+				}
+				building->floors[f].departureEmpty = 0;
+			}
+			else
+			{
+				building->floors[f].departuresDirection[j] = 0;
+			}
+		}
+	}
+
+	switch(building->elevator.currentDirection)
+	{
+		case 0: // If elevator empty, find which moving direction is most helpful
+			// Count move up
+			int8_t moveupCount = 0;
+			int8_t firstStopUp = -1;
+			for(int8_t f = building->elevator.currentFloor; f < BUILDING_HEIGHT; f++)
+			{
+				if(firstStopUp == -1 && building->floors[f].departureEmpty==0 && building->floors[f].departureTotalDirection > 0)
+				{
+					firstStopUp = f;
+				}
+				if(firstStopUp != -1)
+				{
+					for(int8_t j = 0; j < 2; j++)
+					{
+						if(building->floors->departuresDirection[j] > 0)
+						{
+							moveupCount++;
+						}
+					}
+				}
+			}
+			
+			// Count move down
+			int8_t movedownCount = 0;
+			int8_t firstStopDown = -1;
+			for(int8_t f = building->elevator.currentFloor; f >= 0; f--)
+			{
+				if(building->floors[f].departureEmpty==0 && building->floors[f].departureTotalDirection < 0)
+				{
+					firstStopDown = f;
+				}
+				if(firstStopDown != -1)
+				{
+					for(int8_t j = 0; j < 2; j++)
+					{
+						if(building->floors->departuresDirection[j] < 0)
+						{
+							movedownCount++;
+						}
+					}
+				}
+			}
+			
+			// No direction is clearly best
+			if(firstStopUp == -1 && firstStopDown == -1)
+			{
+				// Go to first non-empty floor
+				for(int8_t f = 0; f < BUILDING_HEIGHT; f++)
+				{
+					if(building->floors[f].departureEmpty==0)
+					{
+						if(building->floors[f].departureTotalDirection > 0)
+						{
+							building->elevator.currentDirection = 1;
+						}
+						else
+						{
+							building->elevator.currentDirection = -1;
+						}
+						return f;
+					}
+				}
+			}
+			else
+			{
+				if(firstStopUp == -1 || firstStopDown == -1)
+				{
+					if(firstStopUp == -1)
+					{
+						building->elevator.currentDirection = -1;
+						return firstStopDown;
+					}
+					else
+					{
+						building->elevator.currentDirection = 1;
+						return firstStopUp;
+					}
+				}
+				else
+				{
+					if (moveupCount > movedownCount)
+					{
+						building->elevator.currentDirection = 1;
+						return firstStopUp;
+					}
+					else
+					{
+						building->elevator.currentDirection = -1;
+						return firstStopDown;
+					}
+				}
+			}
+			break;
+		case 1: // continue to move up
+			for(int8_t f = building->elevator.currentFloor; f < BUILDING_HEIGHT; f++)
+			{
+				for(int8_t j = 0; j < ELEVATOR_MAX_CAPACITY-building->elevator.n_passenger && j<2; j++)
+				{ // Pick-up if fit
+					if (building->floors[f].departuresDirection[j] == building->elevator.currentDirection)
+					{
+						return f;
+					}
+				}
+				for(int8_t i = 0; i < ELEVATOR_MAX_CAPACITY; i++)
+				{ // Drop-off at closest floor
+					if(building->elevator.passengers[i] == f)
+					{
+						return f;
+					}
+				}
+			}
+			break;
+		case -1: // continue to move down
+			for(int8_t f = building->elevator.currentFloor; f >= 0; f--)
+			{
+				for(int8_t j = 0; j < ELEVATOR_MAX_CAPACITY-building->elevator.n_passenger && j<2; j++)
+				{ // Pick-up if fit
+					if (building->floors[f].departuresDirection[j] == building->elevator.currentDirection)
+					{
+						return f;
+					}
+				}
+				for(int8_t i = 0; i < ELEVATOR_MAX_CAPACITY; i++)
+				{ // Drop-off at closest floor
+					if(building->elevator.passengers[i] == f)
+					{
+						return f;
+					}
+				}
+			}
+			break;
+	}
 	return 0;
 }
 
@@ -79,7 +265,7 @@ void main(void)
 	for(int8_t i = 0; i < 60; i++)
 	{
 		//Choose the next floor to stop at
-		myBuilding.elevator.nextStop = setNextElevatorStop(myBuilding);
+		myBuilding.elevator.nextStop = setNextElevatorStop(&myBuilding);
 
 		//Move the elevator closer to the next stop
 		moveElevator(&myBuilding.elevator);

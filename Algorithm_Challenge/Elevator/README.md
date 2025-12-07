@@ -39,7 +39,9 @@ Candidate Action Items:
   above function, please do not edit the code that's already in the files, unless you are extremely certain that 
   there's a bug in the code.
 - Briefly describe your implementation (1-3 sentences).
-  - ADD YOUR ANSWER HERE
+  - To avoid excessive back and forth, I prioritize moving in one direction until all onboard passengers would need travel in the opposite direction.
+  - It stops only when someone inside must get off or when the first waiting passenger on a floor wants to travel in the same direction and there is capacity.
+  - When the elevator becomes empty, it selects the initial travel direction with most passengers.
 
 Don't forget; we are interested in both your solution and your thought process.
 

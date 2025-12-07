@@ -32,12 +32,19 @@ struct elevator_s
 	int8_t currentFloor;
 	int8_t nextStop;
 	int8_t passengers[ELEVATOR_MAX_CAPACITY];
+	int8_t empty;
+	int8_t n_passenger;
+	int8_t currentDirection;
+	int8_t allDropped;
 };
 
 struct floor_s
 {
 	int8_t departures[2];
 	int8_t arrivals;
+	int8_t departuresDirection[2];
+	int8_t departureTotalDirection;
+	int8_t departureEmpty;
 };
 
 struct building_s
